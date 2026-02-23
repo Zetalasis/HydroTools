@@ -13,23 +13,7 @@ struct ObjectName {
     char name[0x20];
 };
 
-// Note that this Vertex struct has to be changed depending on the Vertex Stride.
-// There is no one-size-fits-all struct.
-struct Vertex {
-    float x;
-    float y;
-    float z;
-    
-    padding[4]; // normal
-    padding[4]; // tangent
-    
-    padding[2]; // U (half float, not supported by imhex)
-    padding[2]; // V (half float, not supported by imhex)
-    
-    padding[8];// unsure what this is
-};
-
-struct MeshHeader
+struct FileHeader
 {
     u32 shaderCount;
     Shader shaders[shaderCount];
@@ -39,14 +23,29 @@ struct MeshHeader
     padding[4];
 };
 
-MeshHeader header @ 0x00;
+FileHeader header @ 0x00;
 
-struct MeshData {
+struct MeshHeader {
+    char animationData[header.objectCount*48];
+    padding[4];
+
     u32 vertexStride;
     u32 verticesSize;
     u32 vertexCount = verticesSize/vertexStride;
+};
+
+MeshHeader meshHeader @ std::mem::find_sequence(0x00, 0x3F, 0x80, 0x00, 0x00, 0x3F, 0x80, 0x00, 0x00, 0x3F, 0x80);
+
+struct Vertex {
+    float x;
+    float y;
+    float z;
     
-    Vertex vertices[vertexCount];
+    padding[meshHeader.vertexStride-12];
+};
+
+struct MeshData {
+    Vertex vertices[meshHeader.vertexCount];
     
     u32 indicesSize;
     u32 indexStride;
@@ -57,5 +56,4 @@ struct MeshData {
     padding[4]; // index count again
 } [[hex::visualize("3d", vertices, indices)]];
 
-// TODO: need to figure out how to not hardcode -33. It needs to be ()vertexStride + 8)
-MeshData meshData @ std::mem::find_sequence(0x00, 0x00, 0x03, 0xFF, 0x00, 0x00, 0x00) - 33;
+MeshData data @ addressof(meshHeader) + sizeof(meshHeader);
