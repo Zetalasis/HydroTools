@@ -64,23 +64,37 @@ class AnimatedModel:
 
         # == VERTEX DATA == #
         print("[+] Skipping to vertex data...")
-        vertexEnds = getAllOffsets(b'\x00\x00\x03\xFF\x00\x00\x00', self.data)
 
         vertices = []
         uvs = []
 
-        # TODO: remove this hardcoded -32. It's the vertex stride plus 8 bytes for reading vertex stride/vertices size, but we don't know those yet.
-        # Ideally, I should figure out what the block of data between the header and the vertex data is, but I'm too lazy for that.
-        vertexDataStart = vertexEnds[0]-32
-        reader.seek(vertexDataStart)
+        objectDataOffests = getAllOffsets(b'\x3F\x80\x00\x00\x3F\x80\x00\x00\x3F\x80', self.data)
+        if (len(objectDataOffests) == 0):
+            print(f"[!] Failed to find object data!")
+            return
+        animationDataStart = objectDataOffests[0]
+        vertexDataStart = animationDataStart + (objectCount*48) + 4
+
+        reader.seek(vertexDataStart, 0)
+        
         print("[+] Vertex data beginning:", vertexDataStart)
 
+        # mmm bad code
         vertexStride = int.from_bytes(reader.read(4))
         verticesSize = int.from_bytes(reader.read(4))
         vertexCount = verticesSize/vertexStride
         if (not vertexCount.is_integer()):
-            print("[-] Failed to parse vertex data header!")
-            return
+            # in the case of RadHazard.bin, the 4 byte padding doesn't exist.
+            # try reading it again without the padding and see if it works.
+            reader.seek(vertexDataStart-4, 0)
+
+            vertexStride = int.from_bytes(reader.read(4))
+            verticesSize = int.from_bytes(reader.read(4))
+            vertexCount = verticesSize/vertexStride
+
+            if (not vertexCount.is_integer()):
+                print("[-] Failed to parse vertex data header!")
+                return
         vertexCount = int(vertexCount)
 
         print(" [*] Vertex Stride:", vertexStride)
